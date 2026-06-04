@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบติดตามงาน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f4f7f6;
+        }
+        .view-container {
+            display: none;
+        }
+        .view-container.active {
+            display: block;
+        }
+        .class-button {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .class-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .failing-student-row {
+            background-color: #fee2e2 !important; /* bg-red-100 */
+        }
+        .failing-student-row:hover {
+            background-color: #fecaca !important; /* bg-red-200 */
+        }
+        .status-A { background-color: #a7f3d0; color: #065f46; } /* Green */
+        .status-B { background-color: #bfdbfe; color: #1e40af; } /* Blue */
+        .status-C { background-color: #fef08a; color: #854d0e; } /* Yellow */
+        .status-D { background-color: #e9d5ff; color: #581c87; } /* Purple */
+        .status-none { background-color: #fecaca; color: #991b1b; } /* Red */
+        .status-progress { background-color: #e5e7eb; color: #1f2937; } /* Gray for numeric scores */
+
+        #studentDetailTable thead th, #studentSummaryTable thead th {
+            position: sticky;
+            top: 0;
+            background-color: #f9fafb; /* bg-gray-50 */
+        }
+        .table-container {
+             max-height: calc(100vh - 160px); /* 🌟 เปลี่ยนเลข 300 เป็น 160 เพื่อให้ตารางยาวขึ้น */
+             overflow: auto;
+        }
+        #assignmentTooltip {
+            position: fixed;
+            pointer-events: none;
+        }
+         .modal {
+            transition: opacity 0.25s ease;
+        }
+        .modal-content {
+            transition: transform 0.25s ease;
+        }
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 100;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 30px;
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Game 24 Styles */
+        .game24-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 100px); /* กำหนดขนาดกล่องให้เล็กลง */
+            justify-content: center; /* จัดกึ่งกลาง */
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .game24-tile, .game24-slot {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 0.75rem;
+            background-color: #f3f4f6;
+            border: 2px solid #d1d5db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #1e3a8a;
+            user-select: none;
+        }
+        .game24-tile {
+            cursor: pointer;
+            transition: transform 0.1s, border-color 0.2s, box-shadow 0.2s;
+        }
+        .game24-tile:hover {
+            border-color: #60a5fa;
+        }
+        .game24-tile.sel {
+            border-color: #3b82f6;
+            background-color: #dbeafe;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
+        }
+        .game24-slot {
+            background: transparent;
+            border: 2px dashed #d1d5db;
+            opacity: 0.6;
+        }
+        .game24-ops {
+            display: flex;
+            justify-content: center;
+            gap: 1rem; /* เพิ่มระยะห่างให้สมดุลกับปุ่มที่ใหญ่ขึ้น */
+        }
+        .game24-op {
+            width: 64px; /* ขยายปุ่มให้กว้างขึ้น */
+            height: 64px; /* ขยายปุ่มให้สูงขึ้น */
+            border-radius: 0.75rem; /* เพิ่มความโค้งมนให้รับกับปุ่มใหญ่ */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 900;
+            font-size: 2.25rem; /* ขยายขนาดเครื่องหมาย + - * / ให้ใหญ่ขึ้น */
+            cursor: pointer;
+            border: none;
+            transition: transform 0.15s ease;
+        }
+        .game24-op:active {
+            transform: scale(0.9);
+        }
+        .game24-op.sel {
+            transform: scale(0.85);
+        }
+        .op-plus { background-color: #22c55e; }
+        .op-minus { background-color: #f97316; }
+        .op-times { background-color: #6366f1; }
+        .op-divide { background-color: #ef4444; }
+		
+		/* --- Sudoku Styles --- */
+        .sudoku-grid {
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); 
+            grid-template-rows: repeat(4, 1fr); /* 🌟 เพิ่มบรรทัดนี้ บังคับความสูงแถวให้เท่ากัน */
+            gap: 0;
+            width: 100%; max-width: 220px; margin: 1.5rem auto;
+            border: 3px solid #1f2937; border-radius: 8px; overflow: hidden; 
+            aspect-ratio: 1 / 1;
+        }
+        .sudoku-cell {
+            display: flex; align-items: center; justify-content: center;
+            background: #fff; border-right: 1px solid #d1d5db; border-bottom: 1px solid #d1d5db;
+            font-size: 1.75rem; font-weight: 700; color: #1e3a8a;
+            cursor: pointer; user-select: none; transition: 0.15s;
+            aspect-ratio: 1 / 1; /* 🌟 เพิ่มบรรทัดนี้ บังคับให้ช่องเป็นสี่เหลี่ยมจัตุรัสเสมอ */
+        }
+        .sudoku-cell.given { color: #0ea5e9; cursor: default; }
+        .sudoku-cell.selected { background: #dbeafe; box-shadow: inset 0 0 0 3px #3b82f6; }
+        .sudoku-cell.hl { background: #fef3c7; }
+        .sudoku-cell.conflict { background-color: #fee2e2; color: #ef4444; }
+        .sudoku-cell.bR { border-right: 3px solid #1f2937; }
+        .sudoku-cell.bB { border-bottom: 3px solid #1f2937; }
+        
+        .sudoku-picker { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
+        .sudoku-pick {
+            width: 50px; height: 50px; border-radius: 0.5rem;
+            background: #f3f4f6; border: 2px solid #d1d5db;
+            font-size: 1.5rem; font-weight: bold; color: #1f2937; cursor: pointer;
+        }
+        .sudoku-pick:hover { border-color: #3b82f6; }
+        .sudoku-pick.erase { color: #ef4444; }
+		
+		/* --- Daily Mini-Games Styles --- */
+        .speed-math-streak { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 1rem; }
+        .streak-star { font-size: 2rem; color: #e5e7eb; transition: color 0.3s, transform 0.3s; }
+        .streak-star.active { color: #fbbf24; transform: scale(1.2); }
+        
+        .sequence-box { display: inline-flex; align-items: center; justify-content: center; width: 3.5rem; height: 3.5rem; background: #f3f4f6; border-radius: 0.5rem; font-size: 1.5rem; font-weight: bold; border: 2px solid #d1d5db; margin: 0.25rem; }
+        
+        .fruit-row { display: flex; align-items: center; justify-content: center; font-size: 2rem; gap: 0.5rem; margin-bottom: 0.75rem; font-weight: bold;}
+        
+        .magic-square-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.25rem; max-width: 200px; margin: 1rem auto; background: #1f2937; padding: 0.25rem; border-radius: 0.5rem; }
+        .magic-cell { width: 100%; aspect-ratio: 1; text-align: center; font-size: 1.75rem; font-weight: bold; border: none; outline: none; border-radius: 0.25rem; }
+        .magic-cell:disabled { background: #dbeafe; color: #1e3a8a; }
+		/* ซ่อนลูกศรขึ้นลง (Spinners) ของช่องกรอกตัวเลขเกมจัตุรัสกล */
+        .magic-cell::-webkit-outer-spin-button,
+        .magic-cell::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .magic-cell[type=number] {
+            -moz-appearance: textfield;
+        }
+        
+        .memory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin: 1rem auto; }
+        .memory-card { aspect-ratio: 1; background: #3b82f6; border-radius: 0.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: bold; color: white; transition: transform 0.3s; transform-style: preserve-3d; }
+        .memory-card.flipped { background: #fff; color: #1e3a8a; border: 2px solid #3b82f6; transform: rotateY(180deg); }
+        .memory-card.matched { background: #10b981; color: white; border-color: #10b981; cursor: default; transform: rotateY(180deg) scale(0.95); opacity: 0.8; }
+
+        /* Podium Leaderboard Styles */
+        .podium-card {
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .podium-card:hover {
+            transform: translateY(-15px) scale(1.05);
+            z-index: 50 !important;
+        }
+        .rank-1 { 
+            background: linear-gradient(180deg, #fef9c3 0%, #fef08a 100%); 
+            box-shadow: 0 10px 25px rgba(254, 240, 138, 0.5); 
+            color: #713f12; 
+        }
+        .rank-2 { 
+            background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%); 
+            box-shadow: 0 10px 25px rgba(226, 232, 240, 0.5); 
+            color: #1e293b; 
+        }
+        .rank-3 { 
+            background: linear-gradient(180deg, #ffedd5 0%, #fed7aa 100%); 
+            box-shadow: 0 10px 25px rgba(254, 215, 170, 0.5); 
+            color: #7c2d12; 
+        }
+
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="mb-6 bg-white p-4 rounded-xl shadow-sm">
+            <div class="flex justify-between items-start sm:items-center">
+                 <div>
+                    <h1 id="mainTitle" class="text-2xl sm:text-3xl font-bold text-gray-800">ติดตามงานคณิตศาสตร์</h1>
+                    <p id="subTitle" class="text-gray-500 mt-1"></p>
+                    <div id="contextHeader" class="flex flex-wrap items-center gap-2 mt-2 min-h-[32px] hidden"></div>
+                </div>
+               <div class="flex items-center gap-2 sm:gap-3 z-50">
+                    <button id="settingsButton" class="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-cog fa-lg"></i>
+                    </button>
+                    
+                    <div id="loggedInUserChip" class="hidden items-center bg-teal-50 border-2 border-teal-200 rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 shadow-sm gap-2 sm:gap-3">
+                        <img id="loggedInAvatar" src="" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white shadow-sm object-cover hidden">
+                        <div class="flex flex-col leading-tight max-w-[120px] sm:max-w-[180px]">
+                            <span class="text-[10px] sm:text-xs text-teal-600 font-bold">บัญชีผู้ใช้ปัจจุบัน</span>
+                            <span id="loggedInName" class="text-sm sm:text-base font-black text-gray-800 truncate">ชื่อนักเรียน</span>
+                        </div>
+                        <button onclick="if(window.currentLoggedInStudent) window.triggerChangePassword(window.currentLoggedInStudent.id)" class="text-teal-500 hover:text-teal-700 transition-colors bg-white rounded-full w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center shadow-sm border border-teal-100 shrink-0" title="เปลี่ยนรหัสผ่าน"><i class="fas fa-key text-xs sm:text-sm"></i></button>
+                    </div>
+
+                    <button id="backButton" class="hidden font-bold py-2 px-3 sm:px-4 rounded-xl shadow-sm transition-colors flex items-center shrink-0">
+                    </button>
+                </div>
+            </div>
+             <div id="announcement-indicator" class="hidden mt-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-3 rounded-md" role="alert">
+                <div class="flex items-center">
+                    <div class="py-1"><i class="fas fa-info-circle fa-lg mr-3"></i></div>
+                    <div>
+                        <p class="font-bold">มีประกาศด้านล่าง</p>
+                        <p class="text-sm">กรุณาเลื่อนลงเพื่อดูรายละเอียดประกาศและรายชื่อนักเรียนที่ต้องติดตาม</p>
+                    </div>
+                </div>
+            </div>
+            </header>
+
+        <div id="class-selection-view" class="view-container active">          
+            <div id="class-buttons-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                </div>
+            
+            <div id="announcementSection" class="my-8 p-6 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl shadow-lg text-center hidden">
+                <div class="flex items-center justify-center mb-2">
+                    <i class="fas fa-bullhorn text-3xl mr-4 animate-bounce"></i>
+                    <div>
+                        <h2 class="text-xl font-bold uppercase tracking-wider">ประกาศ</h2>
+                        <p id="announcementText" class="text-2xl font-semibold">
+                            </p>
+                    </div>
+                </div>
+            </div>
+            <div id="failingStudentsListSection" class="my-8 hidden">
+                <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                    <h3 class="text-xl sm:text-2xl font-black text-red-700 pt-6 pb-2 text-center"><i class="fas fa-exclamation-triangle mr-2"></i> รายชื่อนักเรียนที่ต้องติดตามเป็นพิเศษ</h3>
+                    <div id="failingStudentsListContainer" class="p-4 sm:p-6 max-h-[550px] overflow-y-auto">
+                        </div>
+                </div>
+            </div>
+            </div>
+
+        <div id="student-summary-view" class="view-container">
+            <div class="mb-4 flex flex-col sm:flex-row gap-2">
+
+                <div class="relative flex-1">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-gray-400"></i>
+                    </div>
+                    <input type="text" id="studentSearchInput" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm shadow-sm" placeholder="ค้นหาชื่อนักเรียน...">
+                </div>
+              <button id="shopButton" onclick="window.openRewardShop()" class="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-all transform hover:scale-105 flex items-center justify-center gap-2 whitespace-nowrap shrink-0">
+                    <i class="fas fa-shopping-cart"></i> <span class="hidden sm:inline">ร้านค้า</span>
+                </button>
+
+               <button onclick="window.openModal(document.getElementById('rulesModal'))" class="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-all transform hover:scale-105 flex items-center justify-center gap-2 whitespace-nowrap shrink-0">
+                    <i class="fas fa-book-open"></i> <span class="hidden sm:inline">กติกา</span>
+                </button>
+            </div>
+            <div class="table-container bg-white rounded-xl shadow-sm">
+                <table id="studentSummaryTable" class="w-full text-sm text-left text-gray-600">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        </thead>
+                    <tbody id="studentSummaryBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="student-detail-view" class="view-container">
+             <div class="table-container bg-white rounded-xl shadow-sm">
+                <table id="studentDetailTable" class="w-full text-sm text-left text-gray-600">
+                     <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        </thead>
+                    <tbody id="studentDetailBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div id="assignmentTooltip" class="hidden bg-gray-800 text-white text-sm rounded-lg px-3 py-1.5 shadow-lg z-50"></div>
+    
+    <div class="toast" id="toast"></div>
+
+    <div id="passwordModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-[60]">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-sm p-6 transform -translate-y-10">
+            <h3 id="passwordModalTitle" class="text-xl font-bold mb-4">กรุณากรอกรหัสผ่าน</h3>
+            <input type="password" id="passwordInput" class="w-full border-gray-300 rounded-lg p-2 shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+            <p id="passwordError" class="text-red-500 text-sm mt-2 hidden">รหัสผ่านไม่ถูกต้อง</p>
+            <div class="mt-6 flex justify-end gap-3">
+                <button id="passwordCancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">ยกเลิก</button>
+                <button id="passwordConfirmBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="game24Modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-sm p-6 transform -translate-y-10 text-center">
+            <h3 id="game24ModalTitle" class="text-xl font-bold mb-2">เข้าห้องด้วยเกม 24</h3>
+            <p class="text-gray-500 mb-4">ทำให้ผลลัพธ์เป็น 24 เพื่อเข้าห้องเรียน</p>
+
+            <div class="bg-blue-600 text-white rounded-lg py-2 mb-4">
+                <div class="text-xs opacity-80">เป้าหมาย</div>
+                <div class="text-4xl font-bold">24</div>
+            </div>
+
+            <div id="game24Grid" class="game24-grid">
+                </div>
+            
+            <div id="game24Ops" class="game24-ops">
+                <button class="game24-op op-plus" data-op="+">+</button>
+                <button class="game24-op op-minus" data-op="-">−</button>
+                <button class="game24-op op-times" data-op="*">×</button>
+                <button class="game24-op op-divide" data-op="/">÷</button>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                 <button id="game24ResetBtn" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 px-4 rounded-lg"><i class="fas fa-redo"></i></button>
+                <button id="game24CancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">ยกเลิก</button>
+            </div>
+        </div>
+    </div>
+	
+	<div id="sudokuModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-sm p-6 transform -translate-y-10 text-center">
+            <h3 id="sudokuModalTitle" class="text-xl font-bold mb-2">เข้าห้องด้วย Sudoku (4x4)</h3>
+            <p class="text-gray-500 mb-2">เติมตัวเลข 1-4 ห้ามซ้ำกันในแถว คอลัมน์ และกรอบย่อย</p>
+            
+            <div id="sudokuGrid" class="sudoku-grid"></div>
+            
+            <div id="sudokuPicker" class="sudoku-picker"></div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button id="sudokuResetBtn" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 px-4 rounded-lg"><i class="fas fa-redo"></i></button>
+                <button id="sudokuCancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">ยกเลิก</button>
+            </div>
+        </div>
+    </div>
+	
+	<div id="speedMathModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-sm p-6 transform -translate-y-10 text-center">
+            <h3 id="speedMathTitle" class="text-xl font-bold mb-2 text-pink-600">คณิตคิดไว (3 ข้อติด)</h3>
+            <div class="speed-math-streak" id="smStreak">
+                <i class="fas fa-star streak-star"></i><i class="fas fa-star streak-star"></i><i class="fas fa-star streak-star"></i>
+            </div>
+            <div class="text-5xl font-black text-gray-800 my-6 tracking-wider" id="smQuestion">? + ?</div>
+            <div id="smDisplay" class="w-full text-center text-3xl font-bold border-2 border-pink-300 bg-pink-50 rounded-lg p-3 mb-4 h-14 flex items-center justify-center text-pink-700 tracking-widest shadow-inner"></div>
+            
+            <div class="grid grid-cols-3 gap-2 mb-6">
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">1</button>
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">2</button>
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">3</button>
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">4</button>
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">5</button>
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">6</button>
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">7</button>
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">8</button>
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">9</button>
+                <button id="smDelBtn" class="bg-red-100 hover:bg-red-200 active:scale-95 transition-transform text-red-600 font-bold py-3 rounded-lg text-xl shadow-sm border border-red-200"><i class="fas fa-backspace"></i></button>
+                <button class="sm-key bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform text-gray-800 font-bold py-3 rounded-lg text-2xl shadow-sm border border-gray-200">0</button>
+                <button id="smEnterBtn" class="bg-pink-500 hover:bg-pink-600 active:scale-95 transition-transform text-white font-bold py-3 rounded-lg text-xl shadow-md border border-pink-600"><i class="fas fa-paper-plane"></i></button>
+            </div>
+            <div class="flex justify-end gap-3"><button id="smCancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg w-full">ยกเลิก</button></div>
+        </div>
+    </div>
+
+    <div id="sequenceModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="modal-content bg-white rounded-3xl shadow-2xl w-full max-w-md sm:max-w-lg p-6 sm:p-8 transform -translate-y-10 text-center border-t-8 border-orange-500">
+            <h3 id="sequenceTitle" class="text-2xl sm:text-3xl font-black text-orange-600 mb-6">ถอดรหัสอนุกรม</h3>
+            
+            <div id="sequenceContainer" class="flex justify-center flex-wrap gap-2 sm:gap-3 mb-8"></div>
+            
+            <input type="number" id="sequenceAnswer" class="w-full text-center text-2xl sm:text-3xl font-bold border-4 border-orange-200 rounded-2xl p-3 sm:p-4 mb-6 outline-none focus:border-orange-500 transition-colors" placeholder="พจน์ที่ 5 คือเลขอะไร?">
+            
+            <div class="flex justify-center gap-3">
+                <button id="sequenceResetBtn" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-3 px-5 sm:px-6 rounded-2xl shadow-sm transition-transform hover:scale-105" title="สุ่มโจทย์ใหม่"><i class="fas fa-redo text-xl"></i></button>
+                <button id="sequenceCancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-2xl w-full shadow-sm text-lg">ยกเลิก</button>
+                <button id="sequenceSubmitBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-2xl w-full shadow-md transition-transform hover:scale-105 text-xl">ตอบ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="fruitMathModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="modal-content bg-white rounded-3xl shadow-2xl w-full max-w-md sm:max-w-lg p-6 sm:p-8 transform -translate-y-10 text-center border-t-8 border-blue-500">
+            <h3 id="fruitTitle" class="text-2xl sm:text-3xl font-black text-blue-600 mb-4">สมการผลไม้</h3>
+            
+            <div id="fruitContainer" class="bg-slate-50 rounded-2xl p-4 sm:p-6 mb-6 border-2 border-slate-200 text-2xl sm:text-3xl font-bold leading-relaxed shadow-inner tracking-wide"></div>
+            
+            <input type="number" id="fruitAnswer" class="w-full text-center text-2xl sm:text-3xl font-bold border-4 border-gray-200 rounded-2xl p-3 sm:p-4 mb-6 outline-none focus:border-blue-500 transition-colors" placeholder="ผลไม้ตัวสุดท้ายมีค่าเท่าไร?">
+            
+            <div class="flex justify-center gap-3">
+                <button id="fruitResetBtn" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-3 px-5 sm:px-6 rounded-2xl shadow-sm transition-transform hover:scale-105"><i class="fas fa-redo text-xl"></i></button>
+                <button id="fruitCancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-2xl w-full shadow-sm text-lg">ยกเลิก</button>
+                <button id="fruitSubmitBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-2xl w-full shadow-md transition-transform hover:scale-105 text-xl">ตอบ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="magicSquareModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-sm p-6 transform -translate-y-10 text-center">
+            <h3 id="magicTitle" class="text-xl font-bold mb-2 text-purple-600">จัตุรัสกล (Magic Square)</h3>
+            <p class="text-gray-500 mb-2 text-xs">เติมเลข 1-9 ให้ผลบวกทุกแนวเท่ากับ 15</p>
+            <div id="magicGrid" class="magic-square-grid"></div>
+            <div class="flex justify-end gap-3 mt-4">
+                <button id="magicResetBtn" class="bg-yellow-400 text-yellow-900 font-bold py-2 px-4 rounded-lg"><i class="fas fa-redo"></i></button>
+                <button id="magicCancelBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg w-full">ยกเลิก</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="memoryModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-sm p-6 transform -translate-y-10 text-center">
+            <h3 id="memoryTitle" class="text-xl font-bold mb-2 text-rose-600">จับคู่ (Memory Match)</h3>
+            <p class="text-gray-500 mb-2 text-xs">จับคู่โจทย์และคำตอบให้ถูกต้อง</p>
+            <div id="memoryGrid" class="memory-grid"></div>
+            <div class="flex justify-end gap-3 mt-4"><button id="memoryCancelBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg w-full">ยกเลิก</button></div>
+        </div>
+    </div>
+    
+    <div id="settingsModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 transform -translate-y-10">
+             <div class="flex justify-between items-center mb-4">
+                 <div id="settingsModalHeader" class="flex items-center gap-4">
+                    <h3 class="text-xl font-bold">ตั้งค่าภาคเรียน</h3>
+                    </div>
+                <button id="settingsCloseBtn" class="text-gray-400 hover:text-gray-600">&times;</button>
+            </div>
+            <div class="max-h-[60vh] overflow-y-auto space-y-4 pr-2">
+                <div id="displaySettingsContainer" class="bg-gray-100 p-4 rounded-lg">
+                    </div>
+                <div id="classSettingsContainer" class="space-y-3">
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="infoModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 transform -translate-y-10">
+            <h3 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">นักเรียนที่ได้คะแนนเท่ากัน</h3>
+            <div id="infoModalContent" class="mb-6 max-h-60 overflow-y-auto space-y-2 no-scrollbar">
+                </div>
+            <div class="text-center">
+                <button id="infoModalCloseBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg w-full transition-colors">ปิด</button>
+            </div>
+        </div>
+    </div>
+	
+	<div id="rewardModal" class="modal fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 hidden opacity-0 z-[100]">
+        <div class="modal-content bg-white rounded-3xl shadow-2xl w-full max-w-sm text-center overflow-hidden transform scale-90 transition-all">
+            <div class="bg-gradient-to-b from-yellow-300 to-yellow-500 p-8 pb-12 relative">
+                <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(white 2px, transparent 2px); background-size: 20px 20px;"></div>
+                <h2 class="text-3xl font-black text-yellow-900 drop-shadow-sm relative z-10">ภารกิจสำเร็จ!</h2>
+                <div class="text-6xl mt-4 animate-bounce relative z-10">🎁</div>
+            </div>
+            <div class="p-6 -mt-8 relative z-20">
+                <div class="bg-white rounded-2xl shadow-lg p-6 border-4 border-yellow-100">
+                    <p class="text-gray-500 font-bold mb-1">ได้รับแต้มสะสม</p>
+                    <p class="text-5xl font-black text-orange-500" id="rewardPoints">+30</p>
+                    <hr class="my-4 border-gray-100">
+                    <p class="text-sm font-bold text-gray-400">ยอดคงเหลือ: <span id="rewardTotal" class="text-gray-800 text-lg">0</span> แต้ม</p>
+                </div>
+                <button onclick="closeModal(document.getElementById('rewardModal'))" class="mt-6 w-full bg-gray-800 text-white font-bold py-3 rounded-xl shadow-md hover:bg-gray-700 transition-colors text-lg">ยอดเยี่ยม!</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pinManagerModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-[80]">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-md transform -translate-y-10 transition-all flex flex-col max-h-[90vh]">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-indigo-50 rounded-t-xl">
+                <h3 class="text-lg font-bold text-indigo-800"><i class="fas fa-key"></i> รหัส PIN และแต้มสะสม</h3>
+                <button onclick="closeModal(document.getElementById('pinManagerModal'))" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div id="pinManagerContent" class="p-0 overflow-y-auto flex-1">
+                </div>
+        </div>
+    </div>
+	
+	<div id="gameModeModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden opacity-0 z-[70]">
+        <div class="modal-content bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden transform -translate-y-10 transition-all">
+            
+            <div class="bg-gradient-to-r from-emerald-400 to-teal-500 p-4 text-center relative">
+                <button onclick="window.closeGameModeModal()" class="absolute top-4 right-4 text-white hover:text-gray-200 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-2 shadow-inner">
+                    <i class="fas fa-gamepad text-3xl text-teal-500"></i>
+                </div>
+                <h3 class="text-xl font-black text-white">เตรียมตัวเข้าสู่มินิเกม!</h3>
+                <p class="text-teal-50 text-sm mt-1">เลือกรูปแบบการเข้าเล่นของคุณ</p>
+            </div>
+
+            <div id="modeSelectionView" class="p-6 space-y-4">
+                <button onclick="window.selectGameMode('points')" class="w-full relative overflow-hidden group bg-gradient-to-br from-yellow-100 to-yellow-50 border-2 border-yellow-400 rounded-2xl p-4 text-left transition-all hover:shadow-md hover:-translate-y-1">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center text-white text-2xl shadow-sm shrink-0">🏆</div>
+                        <div>
+                            <div class="font-bold text-yellow-800 text-lg">เล่นสะสมแต้ม</div>
+                            <div class="text-yellow-600 text-xs mt-0.5">รับคะแนนเพื่อแลกไอเทมพิเศษ</div>
+                        </div>
+                    </div>
+                </button>
+
+                <button onclick="window.selectGameMode('quick')" class="w-full relative overflow-hidden group bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-2xl p-4 text-left transition-all hover:shadow-md hover:-translate-y-1 hover:border-gray-300">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-2xl shadow-sm shrink-0">🚀</div>
+                        <div>
+                            <div class="font-bold text-gray-700 text-lg">เข้าดูงานเฉยๆ</div>
+                            <div class="text-gray-500 text-xs mt-0.5">เล่นเพื่อปลดล็อค (ไม่รับแต้ม)</div>
+                        </div>
+                    </div>
+                </button>
+            </div>
+
+            <div id="pinEntryView" class="p-6 hidden">
+                <button onclick="window.backToModeSelection()" class="text-sm text-gray-500 hover:text-teal-600 mb-4 flex items-center gap-1 font-semibold transition-colors">
+                    <i class="fas fa-chevron-left"></i> ย้อนกลับ
+                </button>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">เลือกชื่อของคุณ</label>
+                        <select id="gameStudentSelect" class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-teal-500 focus:border-teal-500 block p-3 shadow-sm transition-all font-medium">
+                            <option value="">-- ค้นหาชื่อ... --</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">รหัสผ่านส่วนตัวของคุณ</label>
+                        <div class="relative">
+                            <input type="password" id="gamePinInput" placeholder="รหัสผ่านของคุณ" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-center text-xl rounded-xl focus:ring-teal-500 focus:border-teal-500 block p-3 shadow-sm transition-all font-bold">
+                        </div>
+                        <p id="pinErrorMsg" class="text-red-500 text-xs font-bold mt-2 hidden text-center"><i class="fas fa-exclamation-circle"></i> รหัส PIN ไม่ถูกต้อง</p>
+                    </div>
+
+                    <button onclick="window.verifyPinAndStartGame()" class="w-full text-white bg-teal-500 hover:bg-teal-600 focus:ring-4 focus:ring-teal-300 font-bold rounded-xl text-lg px-5 py-3.5 text-center shadow-lg transition-all mt-4 transform hover:scale-[1.02]">
+                        ยืนยันและเริ่มเกม
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+	
+	<div id="shopPromptModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden opacity-0 z-[120]">
+        <div class="modal-content bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 transform -translate-y-10 transition-all text-center border-t-4 border-blue-500">
+            <div id="shopPromptIconContainer" class="w-20 h-20 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4 text-4xl shadow-inner">
+                </div>
+            <h3 id="shopPromptTitle" class="text-xl font-black text-gray-800 mb-4">กรุณากรอกข้อมูล</h3>
+            <input type="text" id="shopPromptInput" class="w-full bg-gray-50 border-2 border-blue-200 text-center text-lg rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3 mb-6 font-bold text-gray-800 placeholder-gray-400 shadow-inner" placeholder="..." autocomplete="off">
+            <div class="flex justify-center gap-3">
+                <button id="shopPromptCancelBtn" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-xl transition-colors shadow-sm">ยกเลิก</button>
+                <button id="shopPromptSubmitBtn" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-transform transform hover:scale-105">ตกลง</button>
+            </div>
+        </div>
+    </div>
+	
+	<div id="shopConfirmModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden opacity-0 z-[110]">
+        <div class="modal-content bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 transform -translate-y-10 transition-all text-center border-t-4 border-purple-500">
+            <div id="shopConfirmIcon" class="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-4xl shadow-inner">
+                </div>
+            <h3 id="shopConfirmTitle" class="text-2xl font-black text-gray-800 mb-2">ยืนยันการสั่งซื้อ</h3>
+            <div id="shopConfirmDesc" class="text-sm text-gray-600 mb-8 leading-relaxed">รายละเอียด...</div>
+            <div class="flex justify-center gap-3">
+                <button onclick="closeModal(document.getElementById('shopConfirmModal'))" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-xl transition-colors shadow-sm">ยกเลิก</button>
+                <button id="shopConfirmSubmitBtn" onclick="window.executeShopPurchase()" class="flex-1 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-transform transform hover:scale-105">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+	
+	<div id="rulesModal" class="modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 hidden opacity-0 z-[150]">
+        <div class="modal-content bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden transform -translate-y-10 transition-all flex flex-col max-h-[90vh]">
+            
+            <div class="bg-gradient-to-r from-orange-500 to-red-600 p-6 relative shrink-0 text-center">
+                <button onclick="window.closeModal(document.getElementById('rulesModal'))" class="absolute top-4 right-4 text-white hover:text-gray-200 transition-colors">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-inner text-4xl mx-auto mb-3 animate-bounce">🔥</div>
+                <h3 class="text-2xl sm:text-3xl font-black text-white shadow-sm drop-shadow-md">กติกา "เทพ A ล้วน"</h3>
+                <p class="text-orange-100 text-sm mt-1 font-medium">ตั้งใจทำงาน ห้ามส่งช้า รับโบนัสแต้มคูณกระจุย!</p>
+            </div>
+
+            <div class="p-5 sm:p-8 overflow-y-auto bg-gray-50 flex-1 space-y-5">
+                
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-orange-400"></div>
+                    <h4 class="font-bold text-red-600 mb-2 flex items-center gap-2 text-lg"><i class="fas fa-star"></i> 1. เงื่อนไขการรับโบนัสตัวคูณ</h4>
+                    <p class="text-sm sm:text-base text-gray-600 leading-relaxed">
+                        ต้องทำงานให้ได้ <span class="font-black text-green-600">เกรด A</span> โดย <span class="font-black text-red-500 underline">ห้ามส่งงานเลท</span> และ <span class="font-black text-red-500 underline">ห้ามใช้ไอเทมช่วยเหลือ</span> ใดๆ ทั้งสิ้น (กุญแจ/นาฬิกา/ยางลบ) จึงจะได้รับสถานะ <span class="font-black text-orange-500 bg-orange-50 px-1 rounded">"เทพ A ล้วน"</span>
+                    </p>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-yellow-400"></div>
+                    <h4 class="font-bold text-orange-600 mb-4 flex items-center gap-2 text-lg"><i class="fas fa-chart-line"></i> 2. ระดับคอมโบ (Streak)</h4>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center font-black border-2 border-gray-300 shrink-0 text-lg">x1</div>
+                            <div class="text-sm sm:text-base text-gray-700 leading-tight"><span class="font-black text-gray-800">ระดับเริ่มต้น (1-3 วัน)</span><br><span class="text-gray-500 text-sm">รับแต้มปกติจากการเล่นมินิเกม</span></div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-black border-2 border-orange-400 shrink-0 text-lg">x3</div>
+                            <div class="text-sm sm:text-base text-gray-700 leading-tight"><span class="font-black text-orange-700">ระดับกลาง (4-7 วัน)</span><br><span class="text-gray-500 text-sm">เข้าเล่นมินิเกมต่อเนื่อง รับแต้มคูณ 3!</span></div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-black border-2 border-red-500 shrink-0 text-lg shadow-[0_0_15px_rgba(239,68,68,0.5)]">x5</div>
+                            <div class="text-sm sm:text-base text-gray-700 leading-tight"><span class="font-black text-red-700">ระดับมหาเทพ (8 วันขึ้นไป)</span><br><span class="text-gray-500 text-sm">เข้าเล่นต่อเนื่อง รับโบนัสแต้มคูณ 5 รัวๆ!</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-red-200 relative overflow-hidden bg-red-50/30">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-red-600"></div>
+                    <h4 class="font-bold text-red-700 mb-2 flex items-center gap-2 text-lg"><i class="fas fa-skull-crossbones"></i> 3. การถูกบทลงโทษ (ตัดสิทธิ์)</h4>
+                    <p class="text-sm sm:text-base text-gray-700 leading-relaxed">
+                        หากนักเรียน <span class="font-black text-red-600">มีงานค้าง, ส่งงานช้า หรือ แอบใช้ไอเทมเวทมนตร์</span> โบนัสคอมโบจะ <span class="font-black text-red-600 underline">ถูกรีเซ็ตเป็น 0 และแต้มกลับเป็น x1 ทันที</span> (จนกว่าจะส่งงานและกลับมาได้ A ล้วนอีกครั้ง)
+                    </p>
+                </div>
+
+            </div>
+
+            <div class="p-4 bg-white border-t border-gray-100 text-center">
+                <button onclick="window.closeModal(document.getElementById('rulesModal'))" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-xl shadow-md transition-all w-full sm:w-auto text-lg hover:scale-105 transform">เข้าใจแล้ว! ลุยเลย 🚀</button>
+            </div>
+        </div>
+    </div>
+	
+	<div id="rewardShopModal" class="modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 hidden opacity-0 z-[90]">
+        <div class="modal-content bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden transform -translate-y-10 transition-all flex flex-col max-h-[90vh]">
+            
+            <div class="bg-gradient-to-r from-purple-600 to-indigo-700 p-4 relative shrink-0">
+                <button onclick="closeModal(document.getElementById('rewardShopModal'))" class="absolute top-4 right-4 text-white hover:text-gray-200 transition-colors">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-inner text-3xl">🛒</div>
+                    <div class="text-white">
+                        <h3 class="text-2xl font-black shadow-sm">ร้านค้าเวทมนตร์</h3>
+                        <p class="text-purple-100 text-sm">ใช้แต้มสะสมเพื่อแลกสิทธิพิเศษ</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="shopAuthView" class="p-6 sm:p-10 flex flex-col items-center justify-center flex-1">
+                <h4 class="text-xl font-bold text-gray-800 mb-6 text-center">ยืนยันตัวตนก่อนเข้าร้าน</h4>
+                <div class="w-full max-w-sm space-y-4">
+				
+				<div id="shopAuthUserInfo" class="hidden items-center gap-3 bg-purple-50 p-3 rounded-xl border border-purple-100 w-full">
+                        <img id="shopAuthAvatar" src="" class="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover hidden">
+                        <div class="text-left leading-tight overflow-hidden">
+                            <div class="text-xs text-purple-600 font-bold">ยืนยันการทำรายการของ</div>
+                            <div id="shopAuthName" class="font-bold text-gray-800 truncate"></div>
+                        </div>
+                    </div>
+				
+                    <select id="shopStudentSelect" class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-purple-500 focus:border-purple-500 block p-3 shadow-sm font-medium">
+                        <option value="">-- เลือกชื่อของคุณ --</option>
+                    </select>
+                    <input type="password" id="shopPinInput" placeholder="รหัสผ่านของคุณ" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-center text-xl rounded-xl focus:ring-purple-500 focus:border-purple-500 block p-3 shadow-sm font-bold">
+                    <p id="shopPinErrorMsg" class="text-red-500 text-sm font-bold mt-2 hidden text-center"><i class="fas fa-exclamation-circle"></i> รหัส PIN ไม่ถูกต้อง</p>
+                    <button onclick="window.verifyShopPin()" class="w-full text-white bg-purple-600 hover:bg-purple-700 font-bold rounded-xl text-lg px-5 py-3 shadow-md transition-transform transform hover:scale-105 mt-2">
+                        เข้าร้านค้า
+                    </button>
+                </div>
+            </div>
+
+            <div id="shopCatalogView" class="hidden flex-col h-full flex-1 overflow-hidden">
+                <div class="bg-purple-50 p-3 px-6 flex justify-between items-center border-b border-purple-100 shrink-0">
+                    <div class="font-bold text-purple-800" id="shopStudentNameDisplay">ชื่อนักเรียน</div>
+                    <div class="bg-white px-4 py-1.5 rounded-full border-2 border-orange-300 shadow-sm flex items-center gap-2">
+                        <i class="fas fa-coins text-orange-500"></i>
+                        <span class="font-black text-orange-600 text-lg" id="shopPointsDisplay">0</span>
+                    </div>
+                </div>
+
+                <div class="p-4 sm:p-6 overflow-y-auto bg-gray-50 flex-1 space-y-6" id="shopItemsContainer">
+                    </div>
+            </div>
+
+        </div>
+    </div>
+	
+	<div id="cropperModal" class="modal fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 hidden opacity-0 z-[100]">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm p-4 transform -translate-y-10">
+            <h3 class="text-lg font-bold mb-3 text-center text-gray-800">เลื่อนและขยายเพื่อครอปรูป</h3>
+            <div class="w-full h-[300px] bg-gray-100 rounded-lg overflow-hidden mb-4 relative border border-gray-300">
+                <img id="cropperImage" class="block max-w-full">
+            </div>
+            <div class="flex justify-center gap-3">
+                <button id="cropperCancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2.5 px-4 rounded-full w-full transition-colors">ยกเลิก</button>
+                <button id="cropperSaveBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-full w-full shadow-md transition-colors"><i class="fas fa-check mr-2"></i>บันทึกรูป</button>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="hiddenAvatarInput" accept="image/jpeg, image/png, image/webp" class="hidden">
+	
+	<div id="studentCardModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50" onclick="closeModal(this)">
+        <div class="modal-content transform -translate-y-10 transition-transform duration-300 w-full max-w-sm" onclick="event.stopPropagation()">
+            <div id="studentCardContent" class="relative flex justify-center w-full">
+                </div>
+        </div>
+    </div>
+
+
+
+
+    <script type="module" src="script.min.js"></script>
+</body>
+</html>
